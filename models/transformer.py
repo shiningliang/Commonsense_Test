@@ -419,16 +419,18 @@ class SequenceTransformer():
             print("Created transformer:", {param: value for param, value in self.__dict__.items() if
                                            param not in ('lexicon', 'word_embs', 'phrases')})
         if self.filepath:  # if filepath given, save transformer
+            # save transformer.pkl
             self.save()
 
     def make_lexicon(self, seqs):
-
-        self.lexicon = {}  # regenerate lexicon everytime this function is called; word_counts will persist between calls
+        # regenerate lexicon everytime this function is called; word_counts will persist between calls
+        self.lexicon = {}
         self.lexicon[self.unk_word] = 1
         for seq in seqs:
             if self.generalize_ents:  # reduce vocab by mapping all named entities to entity labels (e.g. "PERSON_0")
                 ents, ent_counts = get_ents(seq)  # first get named entities
-                for ent, ent_type in ents.items():  # build a dictionary of entities that can be substituted when a generated entity isn't resolved
+                # build a dictionary of entities that can be substituted when a generated entity isn't resolved
+                for ent, ent_type in ents.items():
                     if ent_type not in self.ent_counts:
                         self.ent_counts[ent_type] = {}
                     if ent not in self.ent_counts[ent_type]:
@@ -437,8 +439,8 @@ class SequenceTransformer():
                         self.ent_counts[ent_type][ent] += 1
                 seq = self.replace_ents_in_seq(seq)
             if hasattr(self, 'phrases') and self.phrases is not None:  # add given phrases to word counts
-                seq = combine_phrases_in_seq(seq, self.phrases,
-                                             lemmatized=self.lemmatize)  # if sequences will be lemmatized, assume that given phrases are lemmatized
+                # if sequences will be lemmatized, assume that given phrases are lemmatized
+                seq = combine_phrases_in_seq(seq, self.phrases, lemmatized=self.lemmatize)
             seq = tokenize(seq, lemmatize=self.lemmatize, include_tags=self.include_tags,
                            prepend_start=self.prepend_start)
             for word in seq:
@@ -448,26 +450,26 @@ class SequenceTransformer():
                     self.word_counts[word] += 1
 
         for word, count in self.word_counts.items():
-            if count >= self.min_freq or (self.generalize_ents and word.startswith(
-                    "ENT_")):  # if word is an entity, automatically include it in vocab; otherwise include word if it occurs at least min_freq times
+            # if word is an entity, automatically include it in vocab;
+            # otherwise include word if it occurs at least min_freq times
+            if count >= self.min_freq or (self.generalize_ents and word.startswith("ENT_")):
                 self.lexicon[word] = max(self.lexicon.values()) + 1
 
         self.lexicon_size = len(self.lexicon.keys())
-        self.lexicon_lookup = [None] + [word for index, word in
-                                        sorted([(index, word) for word, index in
-                                                self.lexicon.items()])]  # insert entry for empty timeslot in lexicon lookup
+        self.lexicon_lookup = [None] + [word for index, word in sorted([(index, word) for word, index in
+                                        self.lexicon.items()])]  # insert entry for empty timeslot in lexicon lookup
         assert (len(self.lexicon_lookup) == self.lexicon_size + 1)
 
         if self.generalize_ents:
-            ent_min_freqs = {ent_type: sorted(self.ent_counts[ent_type].values())[-5000:][0] for ent_type in
-                             self.ent_counts}  # only consider most frequent 5000 entitites of a type when sampling
+            # only consider most frequent 5000 entitites of a type when sampling
+            ent_min_freqs = {ent_type: sorted(self.ent_counts[ent_type].values())[-5000:][0] for ent_type in self.ent_counts}
             self.filtered_ent_counts = {ent_type: {ent: count for ent, count in self.ent_counts[ent_type].items()
                                                    # filter by frequency
                                                    if count >= ent_min_freqs[ent_type]} for ent_type in self.ent_counts}
 
         if hasattr(self, 'phrases') and self.phrases is not None:
-            self.phrases = set([phrase for phrase in list(self.phrases) if
-                                phrase in self.lexicon])  # only keep phrases that are in the lexicon
+            # only keep phrases that are in the lexicon
+            self.phrases = set([phrase for phrase in list(self.phrases) if phrase in self.lexicon])
         if self.verbose:
             print("added lexicon of", self.lexicon_size, "words with frequency >=", self.min_freq)
         if self.filepath:  # if filepath given, save transformer
@@ -484,9 +486,9 @@ class SequenceTransformer():
 
     def tok_seq_to_nums(self, seq):
         assert (type(seq) == list)
-        seq = [self.lexicon[word] if word in self.lexicon else 1 if word else 0
-               for word in
-               seq]  # map each token in list of tokens to an index; if word is None, replace with 0; if word is not None but not in lexicon, replace with 1
+        # map each token in list of tokens to an index; if word is None, replace with 0;
+        # if word is not None but not in lexicon, replace with 1
+        seq = [self.lexicon[word] if word in self.lexicon else 1 if word else 0 for word in seq]
         return seq
 
     def tok_seqs_to_nums(self, seqs):

@@ -137,6 +137,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     transformer = SequenceTransformer(min_freq=args.min_freq, lemmatize=True, filepath=args.save_filepath,
+                                      # fine-grained POS tags, retain adj noun adv verb
                                       include_tags=['JJ', 'JJR', 'JJS', 'NN', 'NNS', 'RB', 'RBR', 'RBS', 'RP',
                                                     # lemmatize segments and filter grammatical words
                                                     'VB', 'VBD', 'VBG', 'VBN', 'VBP', 'VBZ'])

@@ -30,6 +30,7 @@ class Pipeline(object):
                 transformer = SkipthoughtsTransformer(verbose=False)
         else:
             transformer = SequenceTransformer.load(filepath, word_embs=word_embs)
+        # load classifier.pkl & classifier.h5
         classifier = SavedModel.load(filepath)
         classifier.filepath = filepath
         if has_skip_vectorizer:
