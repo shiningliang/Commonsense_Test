@@ -287,7 +287,7 @@ def get_adj_sent_pairs(seqs, segment_clauses=False, max_distance=1, reverse=Fals
     pairs = []
     for seq in seqs:
         if type(seq) in (str, bytes):
-            seq = segment(seq, clauses=segment_clauses)
+            seq = segment(seq, clauses=segment_clauses)  # segment the seq into sentences or clauses
         for sent_idx in range(len(seq) - 1):
             sent1 = seq[sent_idx]
             if type(sent1) in (str, bytes):
@@ -348,8 +348,8 @@ def segment_into_clauses(seq):
         sent_clauses = []
         for idx, next_idx in zip(clause_bound_idxs, clause_bound_idxs[1:]):
             clause = sent[idx:next_idx]  # .string
-            if sent_clauses and len(clause) == 1 and clause[
-                -1].pos_ == 'PUNCT':  # if clause is punctuation, append it to previous clause
+            if sent_clauses and len(clause) == 1 and clause[-1].pos_ == 'PUNCT':
+                # if clause is punctuation, append it to previous clause
                 sent_clauses[-1] = sent_clauses[-1] + clause.string
             else:
                 sent_clauses.append(clause.string)

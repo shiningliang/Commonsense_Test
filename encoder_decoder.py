@@ -70,7 +70,7 @@ def get_seqs(filepath, header=None, chunk_size=None):
         seqs = (chunk.iloc[:, 0].values.tolist() for chunk in
                 pandas.read_csv(filepath, encoding='utf-8', header=header, chunksize=chunk_size))
     else:
-        seqs = pandas.read_csv(filepath, encoding='utf-8', header=header).iloc[:, 0].values.tolist()
+        seqs = pandas.read_csv(filepath, encoding='ISO-8859-1', header=header).iloc[:, 0].values.tolist()
     return seqs
 
 
@@ -85,13 +85,13 @@ if __name__ == '__main__':
                     "in the Choice of Plausible Alternatives (COPA) framework")
     parser.add_argument("--train_seqs",
                         help="Specify filename (.csv) containing text used as training data.",
-                        type=str, default='dataset/stories-example.csv')
+                        type=str, default='dataset/raw/stories.csv')
     parser.add_argument("--val_items",
                         help="Specify filename (XML) containing COPA items in validation set.",
-                        type=str, default='dataset/copa-dev.xml')
+                        type=str, default='dataset/raw/copa-dev.xml')
     parser.add_argument("--test_items",
                         help="Specify filename (XML) containing COPA items in test set.",
-                        type=str, default='dataset/copa-test.xml')
+                        type=str, default='dataset/raw/copa-test.xml')
     parser.add_argument("--save_filepath",
                         help="Specify the directory filepath where the trained model should be stored.",
                         type=str, default='example_model')
