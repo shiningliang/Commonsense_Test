@@ -1,6 +1,7 @@
 from __future__ import print_function
 import sys, pandas, argparse
 import xml.etree.cElementTree as et
+import pickle as pkl
 
 sys.path.append('../')
 
@@ -79,13 +80,58 @@ def load_model(filepath):
     return model
 
 
+def preprocess(args):
+    # 数据处理
+    transformer = SequenceTransformer(min_freq=args.min_freq, lemmatize=True, filepath=args.save_filepath,
+                                      # fine-grained POS tags, retain adj noun adv verb
+                                      include_tags=['JJ', 'JJR', 'JJS', 'NN', 'NNS', 'RB', 'RBR', 'RBS', 'RP',
+                                                    # lemmatize segments and filter grammatical words
+                                                    'VB', 'VBD', 'VBG', 'VBN', 'VBP', 'VBZ'])
+    # 模型
+    classifier = EncoderDecoder(filepath=args.save_filepath, recurrent=args.recurrent, batch_size=args.batch_size,
+                                n_hidden_nodes=args.n_hidden_nodes)
+    model = EncoderDecoderPipeline(transformer, classifier)
+
+    if args.chunk_size:  # load training data in chunks
+        if not transformer.lexicon:
+            for seqs in get_seqs(args.train_seqs, chunk_size=args.chunk_size):
+                transformer.make_lexicon(seqs)
+
+        for epoch in range(args.n_epochs):
+            print("EPOCH:", epoch + 1)
+            for seqs in get_seqs(args.train_seqs, chunk_size=args.chunk_size):
+                seq_pairs = get_adj_sent_pairs(seqs, segment_clauses=False if args.segment_sents else True,
+                                               max_distance=args.max_pair_distance, max_sent_length=args.max_length)
+                model.fit(seqs1=[pair[0] for pair in seq_pairs], seqs2=[pair[1] for pair in seq_pairs],
+                          max_length=args.max_length,
+                          eval_fn=lambda model: eval_copa(model, data_filepath=args.val_items), n_epochs=1)
+
+    else:  # load entire training data at once
+        # load ROCStories
+        seqs = get_seqs(args.train_seqs, chunk_size=None)
+        if not transformer.lexicon:
+            # 制作ROCS的词典
+            transformer.make_lexicon(seqs)
+
+        # 邻居句子pair 但只向下文查找，跳过超过max_length的句子
+        seq_pairs = get_adj_sent_pairs(seqs, segment_clauses=False if args.segment_sents else True,
+                                       max_distance=args.max_pair_distance, max_sent_length=args.max_length)
+
+        with open('./checkpoints/model.pkl', 'wb') as f:
+            pkl.dump(model, f)
+        f.close()
+        with open('./dataset/processed/pairs.pkl', 'wb') as f:
+            pkl.dump(seq_pairs, f)
+        f.close()
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="Train an encoder-decoder model that predicts causally related sentences "
                     "in the Choice of Plausible Alternatives (COPA) framework")
     parser.add_argument("--train_seqs",
                         help="Specify filename (.csv) containing text used as training data.",
-                        type=str, default='dataset/raw/stories.csv')
+                        type=str, default='dataset/raw/stories-example.csv')
     parser.add_argument("--val_items",
                         help="Specify filename (XML) containing COPA items in validation set.",
                         type=str, default='dataset/raw/copa-dev.xml')
@@ -94,7 +140,8 @@ if __name__ == '__main__':
                         type=str, default='dataset/raw/copa-test.xml')
     parser.add_argument("--save_filepath",
                         help="Specify the directory filepath where the trained model should be stored.",
-                        type=str, default='example_model')
+                        type=str, default='checkpoints')
+
     parser.add_argument("--min_freq", "-freq",
                         help="Specify frequency threshold for including words in model lexicon, "
                              "such that only words that appear in the training sequences at least "
@@ -136,40 +183,17 @@ if __name__ == '__main__':
                         required=False, type=int, default=0)
     args = parser.parse_args()
 
-    transformer = SequenceTransformer(min_freq=args.min_freq, lemmatize=True, filepath=args.save_filepath,
-                                      # fine-grained POS tags, retain adj noun adv verb
-                                      include_tags=['JJ', 'JJR', 'JJS', 'NN', 'NNS', 'RB', 'RBR', 'RBS', 'RP',
-                                                    # lemmatize segments and filter grammatical words
-                                                    'VB', 'VBD', 'VBG', 'VBN', 'VBP', 'VBZ'])
+    # preprocess(args)
 
-    classifier = EncoderDecoder(filepath=args.save_filepath, recurrent=args.recurrent, batch_size=args.batch_size,
-                                n_hidden_nodes=args.n_hidden_nodes)
-    model = EncoderDecoderPipeline(transformer, classifier)
-
-    if args.chunk_size:  # load training data in chunks
-        if not transformer.lexicon:
-            for seqs in get_seqs(args.train_seqs, chunk_size=args.chunk_size):
-                transformer.make_lexicon(seqs)
-
-        for epoch in range(args.n_epochs):
-            print("EPOCH:", epoch + 1)
-            for seqs in get_seqs(args.train_seqs, chunk_size=args.chunk_size):
-                seq_pairs = get_adj_sent_pairs(seqs, segment_clauses=False if args.segment_sents else True,
-                                               max_distance=args.max_pair_distance, max_sent_length=args.max_length)
-                model.fit(seqs1=[pair[0] for pair in seq_pairs], seqs2=[pair[1] for pair in seq_pairs],
-                          max_length=args.max_length,
-                          eval_fn=lambda model: eval_copa(model, data_filepath=args.val_items), n_epochs=1)
-
-    else:  # load entire training data at once
-        seqs = get_seqs(args.train_seqs, chunk_size=None)
-        if not transformer.lexicon:
-            transformer.make_lexicon(seqs)
-
-        seq_pairs = get_adj_sent_pairs(seqs, segment_clauses=False if args.segment_sents else True,
-                                       max_distance=args.max_pair_distance, max_sent_length=args.max_length)
-        model.fit(seqs1=[pair[0] for pair in seq_pairs], seqs2=[pair[1] for pair in seq_pairs],
-                  max_length=args.max_length,
-                  eval_fn=lambda model: eval_copa(model, data_filepath=args.val_items), n_epochs=args.n_epochs)
+    with open('./checkpoints/model.pkl', 'rb') as f:
+        model = pkl.load(f)
+    f.close()
+    with open('./dataset/processed/pairs.pkl', 'rb') as f:
+        seq_pairs = pkl.load(f)
+    f.close()
+    model.fit(seqs1=[pair[0] for pair in seq_pairs], seqs2=[pair[1] for pair in seq_pairs],
+              max_length=args.max_length,
+              eval_fn=lambda model: eval_copa(model, data_filepath=args.val_items), n_epochs=args.n_epochs)
 
     # Evaluate model on test set after training
     print("\ntest accuracy:")

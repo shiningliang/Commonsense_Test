@@ -27,7 +27,7 @@ def segment(seq, clauses=False):
 
 def tokenize(seq, lowercase=True, recognize_ents=False, lemmatize=False, include_tags=[], include_pos=[],
              prepend_start=False):
-    seq = encoder(seq)
+    seq = encoder(seq)  # 用spacy
     if recognize_ents:  # merge named entities into single tokens
         ent_start_idxs = {ent.start: ent for ent in seq.ents if ent.string.strip()}
         # combine each ent into a single token; this is pretty hard to read, but it works
@@ -296,7 +296,7 @@ def get_adj_sent_pairs(seqs, segment_clauses=False, max_distance=1, reverse=Fals
                 len_sent1 = len(sent1)
             if len_sent1 and len_sent1 <= max_sent_length:
                 for window_idx in range(max_distance):
-                    if sent_idx + window_idx == len(seq) - 1:
+                    if sent_idx + window_idx == len(seq) - 1:  # sent_idx 句子在seq的位置，window_idx 邻居句子的偏移
                         break
                     sent2 = seq[sent_idx + window_idx + 1]
                     if type(sent2) in (str, bytes):
@@ -327,7 +327,7 @@ def segment_into_clauses(seq):
     '''applies a set of heuristics to segment a sequence (one or more sentences) into clauses
     the clauses are those that would useful for splitting causal events, so not all types clauses will be recognized'''
     clauses = []
-    sents = segment(seq)
+    sents = segment(seq)  # 分子句前先分句
     for sent in sents:
         sent = encoder(sent)
         clause_bound_idxs = []
@@ -425,7 +425,7 @@ class SequenceTransformer():
     def make_lexicon(self, seqs):
         # regenerate lexicon everytime this function is called; word_counts will persist between calls
         self.lexicon = {}
-        self.lexicon[self.unk_word] = 1
+        self.lexicon[self.unk_word] = 1  # 加入<UNK>，id=1
         for seq in seqs:
             if self.generalize_ents:  # reduce vocab by mapping all named entities to entity labels (e.g. "PERSON_0")
                 ents, ent_counts = get_ents(seq)  # first get named entities
@@ -442,9 +442,9 @@ class SequenceTransformer():
                 # if sequences will be lemmatized, assume that given phrases are lemmatized
                 seq = combine_phrases_in_seq(seq, self.phrases, lemmatized=self.lemmatize)
             seq = tokenize(seq, lemmatize=self.lemmatize, include_tags=self.include_tags,
-                           prepend_start=self.prepend_start)
+                           prepend_start=self.prepend_start)  # 给每个故事分词 词形还原 词性标注
             for word in seq:
-                if word not in self.word_counts:
+                if word not in self.word_counts:  # 词频词典
                     self.word_counts[word] = 1
                 else:
                     self.word_counts[word] += 1
