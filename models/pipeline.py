@@ -434,7 +434,7 @@ class EncoderDecoderPipeline(Pipeline):
         for epoch in range(n_epochs):
             if n_epochs > 1:
                 if verbose:
-                    print("EPOCH:", epoch + 1)
+                    print("----------EPOCH {}----------".format(epoch + 1))
             if verbose:
                 print("training on", len(seqs1), "sequence pairs")
             for chunk_idx in range(0, len(seqs1), chunk_size):

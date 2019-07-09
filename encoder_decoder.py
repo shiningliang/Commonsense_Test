@@ -2,6 +2,7 @@ from __future__ import print_function
 import sys, pandas, argparse
 import xml.etree.cElementTree as et
 import pickle as pkl
+import time
 
 sys.path.append('../')
 
@@ -42,7 +43,9 @@ def get_copa_scores(model, premises, alts, modes):
             alt1_pairs.append([premise, alt1])
             alt2_pairs.append([premise, alt2])
 
-    alt1_scores = model.predict(seqs1=[pair[0] for pair in alt1_pairs], seqs2=[pair[1] for pair in alt1_pairs])
+    s1 = [pair[0] for pair in alt1_pairs]
+    s2 = [pair[1] for pair in alt1_pairs]
+    alt1_scores = model.predict(seqs1=s1, seqs2=s2)
     alt2_scores = model.predict(seqs1=[pair[0] for pair in alt2_pairs], seqs2=[pair[1] for pair in alt2_pairs])
 
     # pred_alts = numpy.argmax(numpy.array(zip(alt1_scores, alt2_scores)), axis=1)
@@ -98,6 +101,7 @@ def preprocess(args):
                 transformer.make_lexicon(seqs)
 
         for epoch in range(args.n_epochs):
+            print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
             print("EPOCH:", epoch + 1)
             for seqs in get_seqs(args.train_seqs, chunk_size=args.chunk_size):
                 seq_pairs = get_adj_sent_pairs(seqs, segment_clauses=False if args.segment_sents else True,
@@ -111,12 +115,18 @@ def preprocess(args):
         seqs = get_seqs(args.train_seqs, chunk_size=None)
         if not transformer.lexicon:
             # 制作ROCS的词典
+            print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+            print('Making lexicon...')
             transformer.make_lexicon(seqs)
 
         # 邻居句子pair 但只向下文查找，跳过超过max_length的句子
+        print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+        print('Getting adj sent pairs...')
         seq_pairs = get_adj_sent_pairs(seqs, segment_clauses=False if args.segment_sents else True,
                                        max_distance=args.max_pair_distance, max_sent_length=args.max_length)
 
+        print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+        print('Saving model and sent pairs...')
         with open('./checkpoints/model.pkl', 'wb') as f:
             pkl.dump(model, f)
         f.close()
@@ -131,7 +141,7 @@ if __name__ == '__main__':
                     "in the Choice of Plausible Alternatives (COPA) framework")
     parser.add_argument("--train_seqs",
                         help="Specify filename (.csv) containing text used as training data.",
-                        type=str, default='dataset/raw/stories-example.csv')
+                        type=str, default='dataset/raw/stories.csv')
     parser.add_argument("--val_items",
                         help="Specify filename (XML) containing COPA items in validation set.",
                         type=str, default='dataset/raw/copa-dev.xml')
@@ -183,7 +193,7 @@ if __name__ == '__main__':
                         required=False, type=int, default=0)
     args = parser.parse_args()
 
-    # preprocess(args)
+    preprocess(args)
 
     with open('./checkpoints/model.pkl', 'rb') as f:
         model = pkl.load(f)

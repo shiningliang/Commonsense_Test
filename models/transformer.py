@@ -1,6 +1,7 @@
 from __future__ import print_function
 import numpy, os, spacy, pickle, sys, re, random
 from itertools import *
+import multiprocessing
 
 # load spacy model for nlp tools
 encoder = spacy.load('en_core_web_md')
@@ -279,35 +280,50 @@ def get_word_pairs(tok_seq1, tok_seq2):
     return pairs
 
 
+def get_adj_pair(seq, segment_clauses=False, max_distance=1, reverse=False, max_sent_length=25):
+    if type(seq) in (str, bytes):
+        seq = segment(seq, clauses=segment_clauses)  # segment the seq into sentences or clauses
+
+    adj_pairs = []
+    for sent_idx in range(len(seq) - 1):
+        sent1 = seq[sent_idx]
+        if type(sent1) in (str, bytes):
+            len_sent1 = len(tokenize(sent1))
+        else:
+            len_sent1 = len(sent1)
+        if len_sent1 and len_sent1 <= max_sent_length:
+            for window_idx in range(max_distance):
+                if sent_idx + window_idx == len(seq) - 1:  # sent_idx 句子在seq的位置，window_idx 邻居句子的偏移
+                    break
+                sent2 = seq[sent_idx + window_idx + 1]
+                if type(sent2) in (str, bytes):
+                    len_sent2 = len(tokenize(sent2))
+                else:
+                    len_sent2 = len(sent2)
+                if len_sent2 and len_sent2 <= max_sent_length:  # filter sentences that are too long
+                    if reverse:
+                        adj_pairs.append((sent2, sent1))  # if reverse=True, reverse order of sentence pair
+                    else:
+                        adj_pairs.append((sent1, sent2))
+
+    return adj_pairs
+
+
 def get_adj_sent_pairs(seqs, segment_clauses=False, max_distance=1, reverse=False, max_sent_length=25):
     '''sequences can be string or transformer into numbers;
     if segment clauses=True, split sequences by clause boundaries rather than sentence boundaries,
     max distance indicates clause window within which pairs will be found
     (e.g. when max_distance = 2, both neighboring clauses and those separated by one other clause will be paired'''
-    pairs = []
+    results = []
+    pool = multiprocessing.Pool(processes=int(multiprocessing.cpu_count()))
     for seq in seqs:
-        if type(seq) in (str, bytes):
-            seq = segment(seq, clauses=segment_clauses)  # segment the seq into sentences or clauses
-        for sent_idx in range(len(seq) - 1):
-            sent1 = seq[sent_idx]
-            if type(sent1) in (str, bytes):
-                len_sent1 = len(tokenize(sent1))
-            else:
-                len_sent1 = len(sent1)
-            if len_sent1 and len_sent1 <= max_sent_length:
-                for window_idx in range(max_distance):
-                    if sent_idx + window_idx == len(seq) - 1:  # sent_idx 句子在seq的位置，window_idx 邻居句子的偏移
-                        break
-                    sent2 = seq[sent_idx + window_idx + 1]
-                    if type(sent2) in (str, bytes):
-                        len_sent2 = len(tokenize(sent2))
-                    else:
-                        len_sent2 = len(sent2)
-                    if len_sent2 and len_sent2 <= max_sent_length:  # filter sentences that are too long
-                        if reverse:
-                            pairs.append((sent2, sent1))  # if reverse=True, reverse order of sentence pair
-                        else:
-                            pairs.append((sent1, sent2))
+        results.append(pool.apply_async(get_adj_pair, (seq, segment_clauses, max_distance, reverse, max_sent_length,)))
+    pool.close()
+    pool.join()
+    pairs = []
+    for res in results:
+        pairs.extend(res.get())
+
     return pairs
 
 
@@ -426,7 +442,8 @@ class SequenceTransformer():
         # regenerate lexicon everytime this function is called; word_counts will persist between calls
         self.lexicon = {}
         self.lexicon[self.unk_word] = 1  # 加入<UNK>，id=1
-        for seq in seqs:
+        for idx, seq in enumerate(seqs):
+            print('seq {}...'.format(idx))
             if self.generalize_ents:  # reduce vocab by mapping all named entities to entity labels (e.g. "PERSON_0")
                 ents, ent_counts = get_ents(seq)  # first get named entities
                 # build a dictionary of entities that can be substituted when a generated entity isn't resolved
