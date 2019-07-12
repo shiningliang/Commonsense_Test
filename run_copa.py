@@ -378,7 +378,7 @@ def main(start_index=0, end_index=0):
                         action='store_true',
                         help="Set this flag if you are using an uncased model.")
     parser.add_argument("--do_margin_loss",
-                        default=1,
+                        default=0,
                         type=int,
                         help="Use margin loss or log-loss.")
     parser.add_argument("--train_batch_size",
@@ -493,6 +493,7 @@ def main(start_index=0, end_index=0):
             num_train_steps = int(
                 len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps * args.num_train_epochs)
         else:
+            # train_examples = train_examples[0:300]
             num_train_steps = int(
                 len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps * args.num_train_epochs)
 
